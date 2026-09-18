@@ -2,3 +2,4 @@ roboflow
 python-dotenv
 pytest
 pdoc
+pyyaml
