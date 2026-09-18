@@ -15,13 +15,23 @@ kinds of evidence:
    images give similar hashes. The number of differing bits (the Hamming
    distance, 0 to 256) measures how different two images look.
 
-The hash distances are calibrated against (a) neighbouring train frames
-and (b) train frames far apart. On this dataset the two overlap heavily:
-every image shows the same conveyor, lighting and tray positions, so the
-hash responds to scene layout rather than to the individual tray. Manual
-inspection confirmed that the visually closest pairs can be different
-trays. The hash is therefore reported for information only; conclusions
-rest on frame gaps, confirmed by inspecting pictures.
+Findings on this dataset (18 September 2026, recorded in PROJECT_LOG.md):
+
+* Frame numbers do NOT represent time order. Inspection of the saved
+  pairs showed that images one frame number apart, and even images with
+  the *same* frame number in different splits, show different trays in
+  different positions. The numbering is evidently reused across several
+  recordings that share the ``frame_with_red`` prefix. The frame-gap
+  statistics are therefore not evidence of leakage.
+* The hash responds mainly to scene layout (same conveyor, lighting and
+  tray positions in every image). The most visually similar
+  valid/train pair (hash distance 12) was confirmed by inspection to be
+  two different trays.
+* Conclusion: no evidence of near-duplicate leakage was found, so the
+  original split is kept. Leakage cannot be fully ruled out: the same
+  tray photographed at a different point on the belt could be missed.
+
+The script is kept as the record of this investigation.
 
 Outputs (in ``reports/leakage``):
 
