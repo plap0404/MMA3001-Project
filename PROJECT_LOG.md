@@ -500,3 +500,207 @@ looking at the images — before building on them. Errors 4–6 were each caught
 check on real data, not by reviewing the code.
 
 ---
+
+## Session 3 — 21–22 October 2026
+
+**Deadline confirmed: Sunday 25 October 2026, midnight.** (An earlier note in this
+log said Monday 19 October; that was wrong — see AI errors below.)
+
+### 1. Plan to submission
+
+| Day | Work |
+|---|---|
+| Wed 21 Oct | Baseline training started; README drafted |
+| Thu 22 Oct | `alt_s640` and `alt_n960` runs; evaluate each on the test split |
+| Fri 23 Oct | `benchmark.py` on the chosen model; pdoc HTML docs; pytest report |
+| Sat 24 Oct | Write the 5–10 page report and the AI reflection |
+| Sun 25 Oct | Buffer, final checks, submit well before midnight |
+
+### 2. New code this session
+
+All with pytest coverage. **53 tests pass** (16 filter, 12 leakage, 6 evaluate,
+9 benchmark, 10 box stats).
+
+| Script | Purpose |
+|---|---|
+| `scripts/evaluate.py` | Scores trained weights on the **test** split; writes `reports/metrics/<run>_test.{json,md}` |
+| `scripts/benchmark.py` | Latency (split by stage), throughput in trays/min, parameter count and GFLOPs |
+| `scripts/box_stats.py` | Per-class box sizes: median area, median box in px at a given inference size, count below the 32x32 px small-object threshold |
+
+`notebooks/train_colab.ipynb` extended with three training runs (cells 8, 10, 11),
+each followed by a test-split evaluation. A `COMMON` dict fixes the settings shared
+by every run, so only the setting under test differs — this is what makes the
+comparison fair, and it is worth stating in the report.
+
+`README.md` written in full (previously only the AI Acknowledgement stub).
+
+### 3. Class definitions — CONFIRMED by me, not inferred
+
+The Session 1 open item is closed. The dataset ships no written definitions; these
+describe what the annotations consistently mark:
+
+| Class | Meaning |
+|---|---|
+| `loose-meat` | A small piece of meat sitting away from the main group of rashers |
+| `packaging-error` | A crease in the film near the edge of the container |
+| `twisted-meat` | A rasher folded or twisted rather than laid flat |
+| `unsealed` | Film not sealed to the tray rim |
+
+`packaging-error` and `unsealed` are both sealing faults at different stages: a
+crease that risks a seal failing, versus a seal that has already failed.
+
+### 4. Box sizes measured (`scripts/box_stats.py`, all splits, at imgsz 640)
+
+| Class | Boxes | Median area | Median box at 640 px | Smallest / largest | Under 32x32 px |
+|---|---|---|---|---|---|
+| `loose-meat` | 135 | 1.59% | 53 x 121 px | 0.149% / 3.9% | 2 (1%) |
+| `packaging-error` | 1,446 | 0.21% | 28 x 28 px | 0.001% / 4.8% | 661 (46%) |
+| `twisted-meat` | 248 | 1.74% | 51 x 137 px | 0.592% / 3.8% | 0 (0%) |
+| `unsealed` | 619 | 9.61% | 221 x 181 px | 0.140% / 17.6% | 2 (0%) |
+
+Replaces the earlier unmeasured claim that "`packaging-error` boxes are small". The
+measured position is sharper: its median box sits almost exactly on the small-object
+threshold and 46% fall below it, while the class spans a ~4,800x range in area.
+This is the measured justification for the `alt_n960` run.
+
+*Still to run: the same command with `--imgsz 960`, to show how many boxes cross back
+above the threshold.*
+
+### 5. Roboflow count gap — EXPLAINED (Session 2 open item 4 closed)
+
+Roboflow's Classes & Tags page (project level) against the counted export:
+
+| Class | Roboflow | Counted | Gap |
+|---|---|---|---|
+| `loose-meat` | 135 | 135 | — |
+| `packaging-error` | 1,645 | 1,446 | **−199** |
+| `twisted-meat` | 249 | 248 | **−1** |
+| `unsealed` | 619 | 619 | — |
+| `wrinkle` | 18 | 18 | — |
+
+Three classes match exactly, and the project and Version 1 both contain 1,955
+images — so the Session 1 guess that "images were excluded from the version" is
+**disproven**.
+
+**Likely cause:** Version 1 uses `Stretch to 720x540`. Resizing shrinks every
+annotation, and one too small to survive cannot be written to a label file. This
+fits `packaging-error` directly: it is by far the smallest class and its smallest
+surviving box covers about 4 square pixels.
+
+**Honest limit:** this cannot be confirmed for the single `twisted-meat` box. Its
+surviving boxes are all large, and any box that was dropped is by definition absent
+from the data and cannot be measured. One box is also within the range of "something
+irregular happened" and does not require an explanation.
+
+### 6. Version 1 preprocessing — `Stretch to`, not `Fit`
+
+Confirmed on the Roboflow Versions page. Stretching does not preserve aspect ratio,
+so every image and every annotation is distorted identically. Consistent across
+train and test, but a property of the dataset worth stating in the report.
+
+### 7. Baseline trained and evaluated — `baseline_n640`
+
+YOLOv8n, pretrained, 100 epochs, imgsz 640, batch 16, seed 0. Completed all 100
+epochs (`results.csv` has 101 rows including the header). Weights in Drive at
+`MyDrive/MMA3001/runs/baseline_n640/weights/best.pt`.
+
+**Test split (76 images, 91 boxes) — these are the report numbers:**
+
+| Class | Boxes | Precision | Recall | mAP50 | mAP50-95 |
+|---|---|---|---|---|---|
+| `loose-meat` | 3 | 0.747 | 0.667 | 0.913 | 0.275 |
+| `packaging-error` | 29 | 0.593 | 0.414 | 0.513 | 0.132 |
+| `twisted-meat` | 7 | 0.493 | 0.558 | 0.318 | 0.127 |
+| `unsealed` | 52 | 0.719 | 0.827 | 0.777 | 0.385 |
+| **all** | **91** | **0.638** | **0.616** | **0.630** | **0.230** |
+
+Readings to carry into the report:
+
+1. **The 0.913 for `loose-meat` is not evidence of anything.** 3 boxes in 2 images;
+   one box moves it ~33 points. Report it, exclude it from conclusions.
+2. **`packaging-error` recall 0.414** — misses ~60% of creases. The smallest class
+   and the most important one for the stated purpose.
+3. **`twisted-meat` is worst (0.318) despite large boxes.** Box size alone does not
+   explain the ranking; `twisted-meat` has 236 training boxes against 1,372 for
+   `packaging-error`. Object size and training-set size are confounded here and
+   these three runs cannot separate them. Say so rather than implying otherwise.
+4. **mAP50-95 (0.230) far below mAP50 (0.630)** — detections roughly right, boxes
+   not tight. Worst for `packaging-error` (0.132), as expected for a 28 px box.
+5. Evaluation printed ~6.1 ms preprocess / 5.7 ms inference / 3.1 ms postprocess.
+   **Do not quote these** — they come from batched inference. Use `benchmark.py`.
+
+### 8. Software version drift — now pinned
+
+The October run used **Ultralytics 8.4.183, PyTorch 2.11.0+cu130**; the September
+setup recorded 8.4.155 / cu128. Colab upgraded underneath the project.
+`ultralytics==8.4.183` is now pinned in `requirements.txt` so all three runs are
+compared on the same version. README versions updated.
+
+### 9. Licensing
+
+**Ultralytics is AGPL-3.0** (verified on their repository, 22 Oct 2026), with a
+separate commercial Enterprise licence. Fine for this open coursework repo; a real
+production deployment would need the position reviewed. Worth a line in the report
+as a genuine engineering constraint.
+
+*Open:* confirm the dataset licence on the **original** Roboflow Universe page, not
+the fork — the fork lists this workspace as author, which would be the wrong
+attribution. Project notes record CC BY 4.0, requiring credit to the original creator.
+
+### 10. Repository state
+
+Added this session: `scripts/evaluate.py`, `scripts/benchmark.py`,
+`scripts/box_stats.py`, their three test files, the rewritten `README.md`, the
+extended notebook, and the `ultralytics` pin.
+
+### 11. Open items
+
+1. **`alt_s640`** (YOLOv8s, 640) — running at the time of writing, cell 10.
+   Then evaluate it.
+2. **`alt_n960`** (YOLOv8n, 960) — cell 11, then evaluate.
+3. Run `box_stats.py --imgsz 960`.
+4. Run `benchmark.py` on the chosen model (GPU, and CPU for contrast).
+5. Choose the final method and justify it in README section 4.
+6. Generate pdoc HTML documentation and a pytest report.
+7. Fill README sections 5 (speed), 9 (limitations and further work) and 10 (dataset
+   licence).
+8. Write the 5–10 page report and the AI reflection.
+9. **Undecided scope question:** should the model output a pass/fail verdict per
+   tray rather than a list of detections? Would strengthen the engineering framing
+   and give the confidence-threshold work a purpose, at the cost of roughly an hour.
+   Deferred, not rejected.
+
+### 12. AI use record — Session 3
+
+| Task | AI contribution | My contribution |
+|---|---|---|
+| Three-run experiment design | High — proposed baseline + two one-variable alternatives | Agreed the scope; ran every run |
+| `evaluate.py`, `benchmark.py`, `box_stats.py` + tests | High — written by Claude | Ran them; checked the output against expectations |
+| Notebook extension | High | Ran it; confirmed dataset counts and tests matched the laptop |
+| README | High — drafted by Claude | **Corrected the class definitions, rejected the unmeasured "boxes are small" claim, and rejected the glare limitation as overstated** |
+| Roboflow count-gap investigation | Medium — proposed the resize hypothesis | Pulled the Roboflow figures that disproved the earlier explanation |
+| Interpreting baseline results | High | Ran the training and evaluation |
+
+**AI errors caught during this session:**
+
+7. **Claude's stored note had the wrong deadline** (Monday 19 October instead of
+   Sunday 25 October) and it opened the session by stating the deadline had passed.
+   Same failure mode as error 6: an unverified source stated as fact.
+8. **First drafts of the notebook and `evaluate.py` had two defects**, caught by
+   Claude before they were run: metrics were written to Colab storage that is wiped
+   when a session ends, and an argument was passed to the evaluation step that was
+   not verified as supported.
+9. **Claude predicted that box size would predict the per-class ranking.** It holds
+   for `unsealed` (largest boxes, best score) and `packaging-error` (smallest, poor
+   recall), but `twisted-meat` scored worst despite large boxes. The prediction was
+   partly wrong and the confound with training-set size was not anticipated.
+10. **Claude initially asserted "`packaging-error` boxes are small"** in the README
+    from an informal look at a few images in September. I rejected it as unmeasured;
+    `box_stats.py` was then written to measure it. The measured answer is more
+    useful than the claim would have been.
+
+Lesson, consistent across all three sessions: measure rather than assert, and treat
+any AI claim without a source as a hypothesis to test.
+
+---
+
