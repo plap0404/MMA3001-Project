@@ -5,3 +5,4 @@ pdoc
 pyyaml
 numpy
 pillow
+ultralytics==8.4.183
