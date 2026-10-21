@@ -21,10 +21,15 @@ accurately enough and fast enough to run on a moving line.
 
 | Class | Meaning |
 |---|---|
-| `loose-meat` | A rasher sitting out of place within the tray |
-| `packaging-error` | Meat or other material caught in the sealed edge |
+| `loose-meat` | A small piece of meat sitting away from the main group of rashers |
+| `packaging-error` | A crease in the film near the edge of the container |
 | `twisted-meat` | A rasher folded or twisted rather than laid flat |
 | `unsealed` | Film not sealed to the tray rim |
+
+The dataset ships no written definitions, so these describe what the annotations
+consistently mark in the images. `packaging-error` and `unsealed` are both sealing
+faults: a crease near the rim risks a seal that does not hold, while `unsealed` is
+a seal that has already failed.
 
 A fifth annotated class, `wrinkle`, is **excluded**: only 18 examples exist across
 the whole dataset, too few to train or to evaluate meaningfully. Excluding it is a
@@ -43,7 +48,7 @@ single still image.
 | Property | Value |
 |---|---|
 | Format | RGB JPEG images |
-| Size | 720 × 540 pixels, auto-oriented (Roboflow export) |
+| Size | 720 × 540 pixels, auto-oriented, **stretched** to that size (Roboflow export) |
 | Content | One or two pork rasher trays on a conveyor, fixed overhead camera |
 | Source | [Roboflow project](https://universe.roboflow.com/plap0002-student-monash-edu/pork-rasher-error-packaging-hvffk), Version 1 |
 
@@ -76,7 +81,10 @@ model misses, also produces no detection.
 ## 3. Dataset
 
 Roboflow Version 1 (generated 16 September 2026): 1,955 images, auto-oriented and
-resized to 720 × 540, **no augmentation**, split 1,764 / 115 / 76.
+resized to 720 × 540 using `Stretch to`, **no augmentation**, split 1,764 / 115 / 76.
+Stretching does not preserve the original aspect ratio, so every image — and every
+annotation in it — is distorted identically. This is consistent across training and
+test data, but it is a property of the dataset worth stating.
 
 `scripts/filter_labels.py` produces the working dataset used throughout, by
 removing `wrinkle` and converting polygon annotations to boxes. Counts below were
@@ -95,6 +103,24 @@ laptop and in Colab.
 Twenty training images and one test image carry no boxes; these are defect-free
 trays and are kept deliberately as negative examples.
 
+### Box sizes
+
+Measured with `scripts/box_stats.py` over all splits. Sizes in pixels are given at
+an inference size of 640, i.e. the size the model actually sees.
+
+| Class | Boxes | Median area (% of image) | Median box at 640 px | Smallest / largest area | Under 32x32 px |
+|---|---|---|---|---|---|
+| `loose-meat` | 135 | 1.59% | 53 x 121 px | 0.149% / 3.9% | 2 (1%) |
+| `packaging-error` | 1,446 | 0.21% | 28 x 28 px | 0.001% / 4.8% | 661 (46%) |
+| `twisted-meat` | 248 | 1.74% | 51 x 137 px | 0.592% / 3.8% | 0 (0%) |
+| `unsealed` | 619 | 9.61% | 221 x 181 px | 0.140% / 17.6% | 2 (0%) |
+
+The classes span roughly a 46x range in median area. `unsealed` is a judgement about
+the whole tray and its boxes are correspondingly large; `packaging-error` marks a
+crease and is by far the smallest, with its smallest box covering about 4 square
+pixels. The median is quoted rather than the mean because a few large boxes would
+otherwise inflate it.
+
 ### Known data limitations
 
 1. **Severe class imbalance.** `packaging-error` is 62% of training boxes;
@@ -104,12 +130,20 @@ trays and are kept deliberately as negative examples.
    figures for these two are indicative only.
 3. **Skewed test composition.** `unsealed` is 21% of training boxes but 57% of test
    boxes, so any single overall score largely reflects performance on `unsealed`.
-4. **Unexplained count gap.** Roboflow's project-level class balance reports ~1,645
-   `packaging-error` boxes against 1,446 counted in the Version 1 export. Figures
-   in this repository are the counted ones.
-5. **Possible glare shortcut.** Inspected `packaging-error` boxes consistently
-   contain a bright specular highlight. The model may be learning "bright spot"
-   rather than "meat in the seal". See validation notes.
+4. **Annotations lost when the version was generated.** Roboflow's project-level
+   class counts exceed the counts in the exported Version 1 by 200 boxes: 199 in
+   `packaging-error` (1,645 vs 1,446) and 1 in `twisted-meat` (249 vs 248). The other
+   three classes match exactly, and the project and the version contain the same
+   1,955 images, so images were not excluded.
+
+   The likely cause is the version's `Stretch to 720x540` preprocessing. Resizing
+   shrinks every annotation, and an annotation too small to survive cannot be written
+   to a label file. This is consistent with the measured box sizes above:
+   `packaging-error` is by far the smallest class, with its smallest surviving box
+   covering about 4 square pixels. It cannot be confirmed for the single
+   `twisted-meat` box, whose surviving boxes are all large — any box that was dropped
+   is by definition absent from the data and cannot be measured. All figures in this
+   repository are counted from the exported labels, never taken from the dashboard.
 6. **Split independence.** The images are video frames. Frame numbers in the
    filenames were shown **not** to represent time order, and the most visually
    similar train/test pair was confirmed by inspection to be different trays, so no
@@ -136,8 +170,13 @@ attributable:
 | `alt_n960` | YOLOv8n | 960 | Is input resolution the limit? |
 
 All runs share 100 epochs, batch size 16, `seed=0`, and Ultralytics defaults
-otherwise. Source images are 720 px wide, so 640 shrinks them slightly; since
-`packaging-error` boxes are small, resolution is a plausible limiting factor.
+otherwise.
+
+The resolution run is motivated by measurement, not intuition. `scripts/box_stats.py`
+reports that the median `packaging-error` box is **28 x 28 px** at an inference size
+of 640, and **46% of them fall below the conventional 32 x 32 px small-object
+threshold**. Since that class is 62% of all training boxes, how well small objects
+are handled should dominate overall performance.
 
 *[TODO after runs: state which was selected as the final method and why.]*
 
@@ -149,14 +188,44 @@ Reported on the **test** split, which was held out and scored only after trainin
 Validation scores are not quoted as final results, because the validation split
 selected the saved weights.
 
-*[TODO: paste tables from `reports/metrics/`. Include per-class results, not only
-the overall figure — see data limitation 3.]*
+### Overall
 
-| Run | Precision | Recall | mAP50 | mAP50-95 | ms/image |
+| Run | Precision | Recall | mAP50 | mAP50-95 |
+|---|---|---|---|---|
+| `baseline_n640` | 0.638 | 0.616 | 0.630 | 0.230 |
+| `alt_s640` | | | | |
+| `alt_n960` | | | | |
+
+### Per class — `baseline_n640`
+
+| Class | Test boxes | Precision | Recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|---|
-| `baseline_n640` | | | | | |
-| `alt_s640` | | | | | |
-| `alt_n960` | | | | | |
+| `loose-meat` | 3 | 0.747 | 0.667 | 0.913 | 0.275 |
+| `packaging-error` | 29 | 0.593 | 0.414 | 0.513 | 0.132 |
+| `twisted-meat` | 7 | 0.493 | 0.558 | 0.318 | 0.127 |
+| `unsealed` | 52 | 0.719 | 0.827 | 0.777 | 0.385 |
+| **all** | **91** | **0.638** | **0.616** | **0.630** | **0.230** |
+
+**The 0.913 for `loose-meat` is not evidence of good performance.** It rests on 3
+boxes in 2 images; a single box either way moves it by roughly 33 percentage points.
+It is reported for completeness and excluded from any conclusion.
+
+**`packaging-error` recall is 0.414**, so the baseline misses close to 60% of creases.
+This is the class with the smallest boxes and the one that matters most for the stated
+purpose, since a missed defect leaves the line undetected.
+
+**`twisted-meat` scores lowest (mAP50 0.318) despite large boxes.** Box size alone
+therefore does not explain the ranking: `twisted-meat` has only 236 training boxes
+against 1,372 for `packaging-error`. Object size and number of training examples are
+confounded in this dataset and these runs cannot fully separate them.
+
+**mAP50-95 (0.230) is far below mAP50 (0.630)**, so detections are placed roughly
+correctly but the boxes are not tight. The effect is strongest for `packaging-error`
+(0.132), as expected: for a box 28 px across, being a few pixels out is a large
+proportional error.
+
+*[TODO: speed figures from `scripts/benchmark.py`. The millisecond values printed
+during evaluation come from batched inference and are not quoted here.]*
 
 ---
 
@@ -190,8 +259,12 @@ MMA3001-Project/
 ### Environment
 
 Developed on Ubuntu, Python 3.12.3. Training runs in Google Colab on a Tesla T4
-(Python 3.13.15, PyTorch 2.11.0+cu128, Ultralytics 8.4.155). Data preparation and
+(Python 3.13.15, PyTorch 2.11.0+cu130, Ultralytics 8.4.183). Data preparation and
 tests were verified on both Python versions.
+
+Colab upgraded Ultralytics between the September setup (8.4.155) and the October
+training runs. `ultralytics` is now pinned in `requirements.txt` so that all three
+runs are compared on the same version.
 
 ### Local setup
 
@@ -261,9 +334,16 @@ you would do next with more time.]*
 
 Released under the MIT Licence — see [LICENSE](LICENSE).
 
-The dataset originates from a Roboflow Universe project and is subject to its own
-licence terms. *[TODO: state the dataset licence and check Ultralytics' licence
-terms, which are AGPL-3.0 unless a commercial licence applies.]*
+**Ultralytics** (used for training and evaluation) is released under **AGPL-3.0**,
+with a separate commercial Enterprise licence available. AGPL-3.0 is acceptable for
+this open, non-commercial coursework repository. A real deployment on a production
+line would need the licence position reviewed, since AGPL-3.0 carries obligations
+that a commercial operator may not want to accept.
+
+The dataset originates from a Roboflow Universe project. *[TODO: confirm the dataset
+licence on the ORIGINAL Universe page, not the fork — the fork lists this workspace
+as author, which would be the wrong attribution. Project notes record it as CC BY 4.0,
+which requires crediting the original creator.]*
 
 ---
 
