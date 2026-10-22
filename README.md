@@ -450,10 +450,16 @@ this open, non-commercial coursework repository. A real deployment on a producti
 line would need the licence position reviewed, since AGPL-3.0 carries obligations
 that a commercial operator may not want to accept.
 
-The dataset originates from a Roboflow Universe project. *[TODO: confirm the dataset
-licence on the ORIGINAL Universe page, not the fork — the fork lists this workspace
-as author, which would be the wrong attribution. Project notes record it as CC BY 4.0,
-which requires crediting the original creator.]*
+**Dataset.** *Pork Rasher Error(Packaging)*, by the Roboflow Universe workspace
+"Hello" (@hello-2aqe0):
+https://universe.roboflow.com/hello-2aqe0/pork-rasher-error-packaging — licensed
+**CC BY 4.0**, which permits reuse with credit to the creator. It was identified as the
+original by matching image count (1,955) and its Version 4 (3,549 images), which the
+unit's dataset notes describe. This project works from a fork of it
+([fork](https://universe.roboflow.com/plap0002-student-monash-edu/pork-rasher-error-packaging-hvffk)).
+Roboflow's auto-generated citation for the fork names the fork's workspace as author;
+that is not the creator, so the original is credited here. The images are not
+redistributed in this repository; `scripts/download_data.py` fetches them.
 
 ---
 
