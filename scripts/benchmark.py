@@ -145,10 +145,16 @@ def main() -> None:
     if not image_paths:
         raise SystemExit(f"No images found in {args.images}")
 
+    from ultralytics.utils.torch_utils import get_flops, get_num_params
+
     model = YOLO(args.weights)
-    # model.info() returns (layers, parameters, gradients, GFLOPs).
-    _, parameters, _, gflops = model.info(detailed=False, verbose=False)
-    info = {"parameters": int(parameters), "gflops": float(gflops)}
+    # Computed directly, not via model.info(): in Ultralytics 8.4.183
+    # model.info(verbose=False) returns None, and model.info() always costs the
+    # model at 640 px. get_flops() is given the real inference size instead.
+    info = {
+        "parameters": int(get_num_params(model.model)),
+        "gflops": float(get_flops(model.model, imgsz=args.imgsz)),
+    }
 
     def synchronise() -> None:
         """Wait for queued GPU work to finish, so timings measure real work."""
