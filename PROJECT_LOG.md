@@ -798,6 +798,29 @@ alternative improved on it, so there was no accuracy-versus-cost trade-off.
 5. Check the repository is public before submitting.
 6. Pass/fail-per-tray scope question — now listed as further work, not done.
 
+### 7a. Closed later on 23 October
+
+- **Pytest report and pdoc docs** generated and pushed (`reports/tests/`, `reports/docs/`).
+- **Metrics** for all runs pushed to `reports/metrics/` (14 files, test + speed).
+- **Repository public** — already confirmed in Session 2; re-check in incognito before
+  submitting.
+- **Dataset licence confirmed:** original is *Pork Rasher Error(Packaging)* by Roboflow
+  workspace "Hello" (@hello-2aqe0), CC BY 4.0, May 2025 —
+  https://universe.roboflow.com/hello-2aqe0/pork-rasher-error-packaging. Identified by
+  1,955 images and its Version 4 (3,549 images), as in the unit notes. README section 10
+  updated.
+
+### 7b. Remaining before submission (Sun 25 Oct, midnight)
+
+1. **Report** — a Claude doc in the project chat: sections 1–3 and 8 (References)
+   drafted; 4 (validation and results), 5 (comparison and optimisation), 6
+   (limitations and lessons) to draft from this log; 7 (AI reflection) written by me.
+   Then cut to 5–10 pages (references excluded) and export for Moodle.
+   Report doc: https://claude.ai/artifact/Li3f163UQ4x3WqNiWwSU53
+2. README AI Acknowledgement placeholders (tools, dates, checks, an error caught).
+3. Submit on Moodle: the report, the repository link, **and a zipped clone of the
+   repository** (required by the brief).
+
 ### 8. AI use record — Session 4
 
 | Task | AI contribution | My contribution |
