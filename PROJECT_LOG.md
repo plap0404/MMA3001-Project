@@ -704,3 +704,121 @@ any AI claim without a source as a hypothesis to test.
 
 ---
 
+
+## Session 4 — 22–23 October 2026
+
+All three runs trained, evaluated on the test split and benchmarked. Final method
+chosen: **`baseline_n640`**. README sections 3, 4, 5, 6, 8 and 9 filled from measured
+results. Report drafting started in a separate document (sections 1–3 drafted).
+
+### 1. `alt_s640` — log file missing rows, run complete
+
+`results.csv` had 95 rows instead of 101, which first suggested training stopped at
+epoch 94. Reading the file showed it reaches epoch 100 but **epochs 78–80 and 85–87
+are missing**. The time column (about 28 s per epoch) shows no gap or restart:
+epoch 77 ends at 2,148 s and epoch 81 at 2,259 s, exactly four epochs later. Training
+ran continuously; six rows were lost from the log. Most likely cause: a write lost
+while saving directly to Google Drive. Not proven. The weights and test results do
+not depend on this file. Confirmed by opening the file in Drive that the rows really
+are missing (not a copy-paste artefact). `alt_n960`'s `results.csv` is complete
+(101 rows).
+
+### 2. Test-split results (76 images, 91 boxes)
+
+| Run | Precision | Recall | mAP50 | mAP50-95 |
+|---|---|---|---|---|
+| `baseline_n640` | 0.638 | 0.616 | **0.630** | 0.230 |
+| `alt_s640` | 0.419 | 0.545 | 0.491 | 0.225 |
+| `alt_n960` | 0.611 | 0.635 | 0.561 | 0.232 |
+
+| Class (mAP50) | Boxes | `baseline_n640` | `alt_s640` | `alt_n960` |
+|---|---|---|---|---|
+| `loose-meat` | 3 | 0.913 | 0.618 | 0.727 |
+| `packaging-error` | 29 | 0.513 | 0.340 | 0.364 |
+| `twisted-meat` | 7 | 0.318 | 0.287 | 0.397 |
+| `unsealed` | 52 | 0.777 | 0.720 | 0.755 |
+
+Readings:
+
+1. **Bigger model worse.** `alt_s640` loses mainly on precision. Training losses
+   fall to the end while validation losses rise from about epoch 65 — consistent
+   with overfitting, not proof. Its validation mAP50 (~0.72) far exceeds its test
+   score; `best.pt` is selected on validation, so only test scores are quoted.
+2. **Bigger input did not help `packaging-error`** (0.513 → 0.364), the class it was
+   run for. Likely reason: the images are 720 x 540, so 960 enlarges them without
+   adding detail, and the smallest creases were already lost in the Roboflow resize.
+   `box_stats.py --imgsz 960`: median box 43 x 43 px, share under 32 x 32 px down
+   from 46% to 17% — the boxes got bigger, the score did not.
+3. `twisted-meat` improved at 960 (0.318 → 0.397; mAP50-95 0.127 → 0.195) — 7 boxes,
+   indicative only.
+4. mAP50-95 nearly identical across runs (0.225–0.232).
+5. Each configuration trained once; run-to-run variation unmeasured.
+
+### 3. Speed and compute — `scripts/benchmark.py`
+
+One image at a time, 10 warm-up images discarded, 3 passes over 76 test images.
+
+| Run | Device | Parameters | GFLOPs | Median (ms) | 95th pct (ms) | Images/min |
+|---|---|---|---|---|---|---|
+| `baseline_n640` | T4 | 3,138,732 | 8.8 | 10.8 | 14.6 | 5,562 |
+| `alt_s640` | T4 | 11,137,148 | 28.6 | 14.8 | 17.3 | 4,043 |
+| `alt_n960` | T4 | 3,138,732 | 19.7 | 17.0 | 20.6 | 3,523 |
+| `baseline_n640` | CPU (1 pass) | 3,138,732 | 8.8 | 106.2 | 123.7 | 565 |
+
+960 costs 2.24x the GFLOPs of 640, matching the 2.25x pixel ratio. The script labels
+throughput "trays/minute"; the README says images per minute, since some images show
+two trays. Real line speed is unknown — an assumption in the report.
+
+### 4. Decision — final method `baseline_n640`
+
+Highest test mAP50, highest on `packaging-error`, and cheapest and fastest. Neither
+alternative improved on it, so there was no accuracy-versus-cost trade-off.
+
+### 5. Corrections
+
+- README said "no augmentation". True of the dataset only: Ultralytics applies its
+  default training-time augmentation (mosaic, colour, flips) in every run. Corrected.
+- Optimiser recorded: AdamW chosen automatically, initial learning rate 0.00125,
+  linear decay (read from the logged learning rate).
+
+### 6. Repository changes
+
+- `scripts/benchmark.py` fixed (see AI error 11).
+- README: selected method, results for all runs, comparison, speed table, box sizes at
+  960, layout, test/docs instructions, limitations and further work.
+- To add: `reports/tests/pytest_report.txt` and `reports/docs/` (pdoc HTML).
+
+### 7. Open items
+
+1. Generate and commit the pytest report and pdoc docs.
+2. Confirm the dataset licence on the **original** Roboflow Universe page (README
+   section 10).
+3. Report: sections 4–8, then cut to 5–10 pages. AI reflection written by me.
+4. Fill the README AI Acknowledgement placeholders.
+5. Check the repository is public before submitting.
+6. Pass/fail-per-tray scope question — now listed as further work, not done.
+
+### 8. AI use record — Session 4
+
+| Task | AI contribution | My contribution |
+|---|---|---|
+| Diagnosing the 95-row `results.csv` | High | Pasted the file; confirmed the rows were missing in Drive |
+| Interpreting the three runs | High | Ran every training, evaluation and benchmark |
+| Benchmark fix | High — written by Claude | Applied, committed and pushed it; re-ran |
+| README results and limitations | High — drafted by Claude | Reviewed and committed |
+| Report sections 1–3 | High — drafted by Claude from the log and README | To review |
+
+**AI errors caught during this session:**
+
+11. **`benchmark.py` crashed on first use.** Claude had assumed `model.info(verbose=False)`
+    returns the model summary; in Ultralytics 8.4.183 it returns `None`. The old call
+    would also have costed the 960 run at 640 px. Fixed by computing parameters and
+    GFLOPs directly at the real inference size, after reading the library source.
+12. **Claude first read the 95-row `results.csv` as training stopped at epoch 94** and
+    told me to resume. Reading the file showed missing rows, not an early stop;
+    resuming would have failed. Same lesson: check the data before acting on a guess.
+13. **The resolution hypothesis was wrong.** Claude expected 960 to help
+    `packaging-error`; it made it worse. The source resolution (720 px) was not
+    considered when the run was designed.
+
+---

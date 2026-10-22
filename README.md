@@ -81,7 +81,9 @@ model misses, also produces no detection.
 ## 3. Dataset
 
 Roboflow Version 1 (generated 16 September 2026): 1,955 images, auto-oriented and
-resized to 720 × 540 using `Stretch to`, **no augmentation**, split 1,764 / 115 / 76.
+resized to 720 × 540 using `Stretch to`, **no augmentation in the dataset**, split
+1,764 / 115 / 76. (Ultralytics still applies its default training-time augmentation —
+mosaic, colour shifts and flips — identically in every run.)
 Stretching does not preserve the original aspect ratio, so every image — and every
 annotation in it — is distorted identically. This is consistent across training and
 test data, but it is a property of the dataset worth stating.
@@ -120,6 +122,11 @@ the whole tray and its boxes are correspondingly large; `packaging-error` marks 
 crease and is by far the smallest, with its smallest box covering about 4 square
 pixels. The median is quoted rather than the mean because a few large boxes would
 otherwise inflate it.
+
+At an inference size of 960 the median `packaging-error` box becomes 43 x 43 px and the
+share under 32 x 32 px falls from 46% to 17% (`python scripts/box_stats.py --imgsz 960`).
+The source images are only 720 px wide, however, so this enlargement adds no real detail
+— see section 5.
 
 ### Known data limitations
 
@@ -178,7 +185,14 @@ of 640, and **46% of them fall below the conventional 32 x 32 px small-object
 threshold**. Since that class is 62% of all training boxes, how well small objects
 are handled should dominate overall performance.
 
-*[TODO after runs: state which was selected as the final method and why.]*
+**Selected method: `baseline_n640`.** It scored highest on the held-out test split
+(mAP50 0.630), highest on `packaging-error`, the most important class, and is also the
+cheapest and fastest of the three. Neither alternative improved on it (section 5), so
+there is no accuracy-versus-cost trade-off to make.
+
+Training used the optimiser Ultralytics selects automatically (AdamW, initial learning
+rate 0.00125, decayed linearly; confirmed from the logged learning rate), and the saved
+weights are `best.pt`, the epoch with the best validation score.
 
 ---
 
@@ -193,8 +207,19 @@ selected the saved weights.
 | Run | Precision | Recall | mAP50 | mAP50-95 |
 |---|---|---|---|---|
 | `baseline_n640` | 0.638 | 0.616 | 0.630 | 0.230 |
-| `alt_s640` | | | | |
-| `alt_n960` | | | | |
+| `alt_s640` | 0.419 | 0.545 | 0.491 | 0.225 |
+| `alt_n960` | 0.611 | 0.635 | 0.561 | 0.232 |
+
+### Per class — mAP50, all runs
+
+| Class | Test boxes | `baseline_n640` | `alt_s640` | `alt_n960` |
+|---|---|---|---|---|
+| `loose-meat` | 3 | 0.913 | 0.618 | 0.727 |
+| `packaging-error` | 29 | **0.513** | 0.340 | 0.364 |
+| `twisted-meat` | 7 | 0.318 | 0.287 | **0.397** |
+| `unsealed` | 52 | **0.777** | 0.720 | 0.755 |
+
+Full per-class tables for every run are in `reports/metrics/<run>_test.md`.
 
 ### Per class — `baseline_n640`
 
@@ -224,8 +249,46 @@ correctly but the boxes are not tight. The effect is strongest for `packaging-er
 (0.132), as expected: for a box 28 px across, being a few pixels out is a large
 proportional error.
 
-*[TODO: speed figures from `scripts/benchmark.py`. The millisecond values printed
-during evaluation come from batched inference and are not quoted here.]*
+### Comparing the runs
+
+**A larger model (`alt_s640`) was worse, not better** (mAP50 0.491). The loss is mainly
+in precision — more false alarms. Its training log is consistent with overfitting:
+training losses fall to the last epoch while validation losses rise from about epoch 65.
+Its validation mAP50 (about 0.72) is far above its test score, partly because `best.pt`
+is chosen *by* the validation split, which is why only test scores are quoted here.
+
+**A larger input size (`alt_n960`) did not help `packaging-error`**, the class it was run
+for (0.513 → 0.364), even though it lifts most of those boxes above the small-object
+size. The likely reason is that the source images are 720 x 540: running at 960 enlarges
+them, which adds pixels but no new detail. The smallest creases were also already lost
+when the dataset was resized (section 3, limitation 4). This is the most likely
+explanation, not a proven one. `twisted-meat` did improve (0.318 → 0.397, mAP50-95 0.127
+→ 0.195), but on 7 test boxes this is indicative only.
+
+**mAP50-95 is almost identical across runs (0.225–0.232)**: the runs differ in whether
+defects are found, not in how tightly boxes fit them.
+
+### Speed and compute cost
+
+Measured with `scripts/benchmark.py`: one image at a time (as on a line), 10 warm-up images
+discarded, 3 passes over the 76 test images, GPU synchronised before each timer stops.
+
+| Run | Device | Parameters | GFLOPs / image | Median (ms) | 95th pct (ms) | Images / minute |
+|---|---|---|---|---|---|---|
+| **`baseline_n640`** | T4 GPU | 3.14 M | 8.8 | **10.8** | **14.6** | **5,562** |
+| `alt_s640` | T4 GPU | 11.14 M | 28.6 | 14.8 | 17.3 | 4,043 |
+| `alt_n960` | T4 GPU | 3.14 M | 19.7 | 17.0 | 20.6 | 3,523 |
+| `baseline_n640` | Colab CPU | 3.14 M | 8.8 | 106.2 | 123.7 | 565 |
+
+GFLOPs (billions of arithmetic operations per image) do not depend on the machine, so they
+are the fair measure of cost. The 960 run costs 2.24x the 640 run, matching the 2.25x
+increase in pixel count. Times include reading the image from disk; the figures printed
+during evaluation came from batched inference and are not quoted.
+
+Even at its 95th-percentile time on CPU (0.12 s), the selected model handles about 8 images
+per second. Whether that keeps up with a real line depends on its speed, which is not known
+for this dataset and is an assumption. Images rather than trays are counted, since some
+images show two trays.
 
 ---
 
@@ -240,11 +303,15 @@ MMA3001-Project/
 │   ├── dataset_stats.py     Counts images, labels and boxes per class per split
 │   ├── filter_labels.py     Removes wrinkle, converts polygons to boxes -> data/pork_v4class
 │   ├── check_leakage.py     Near-duplicate investigation between splits
-│   └── evaluate.py          Scores trained weights on the held-out test split
+│   ├── evaluate.py          Scores trained weights on the held-out test split
+│   ├── benchmark.py         Latency, throughput, parameters and GFLOPs
+│   └── box_stats.py         Per-class box sizes at a given inference size
 ├── tests/                   pytest suite for the scripts above
 ├── reports/
 │   ├── leakage/             Leakage report, evidence images
-│   └── metrics/             Per-run test-split results (JSON + Markdown)
+│   ├── metrics/             Per-run test-split and speed results (JSON + Markdown)
+│   ├── docs/                HTML code documentation (pdoc)
+│   └── tests/               pytest report
 ├── PROJECT_LOG.md           Dated session log: decisions, verified counts, AI-use record
 ├── requirements.txt
 └── pytest.ini
@@ -318,15 +385,58 @@ python -m pytest -v         # per-test detail, for the test report
 Tests use small synthetic fixtures rather than the real dataset, so they run in
 under a second and do not depend on downloaded data.
 
-*[TODO: generate the test report and HTML code documentation (pdoc) before
-submission.]*
+53 tests cover filtering, leakage checking, evaluation, benchmarking and box
+statistics. The saved test report is `reports/tests/pytest_report.txt`.
+
+### Code documentation
+
+HTML documentation is generated from the docstrings with pdoc, and saved in
+`reports/docs/` (open `reports/docs/index.html` in a browser):
+
+```bash
+python -m pytest -v > reports/tests/pytest_report.txt
+pdoc scripts/*.py -o reports/docs
+```
 
 ---
 
 ## 9. Limitations and further work
 
-*[TODO after results: what the method cannot establish, where it fails, and what
-you would do next with more time.]*
+### Limitations
+
+1. **`packaging-error` recall is 0.414**: the selected model misses close to 60% of
+   creases, the most important defect. It is not ready to replace a human inspector.
+2. **Small, skewed test set.** 76 images; 3 `loose-meat` and 7 `twisted-meat` boxes.
+   Per-class scores for those two are indicative only, and the overall score is
+   dominated by `unsealed` (57% of test boxes).
+3. **One training run per configuration.** Run-to-run variation was not measured, so
+   part of the gap between runs may be chance. A seed does not make GPU training fully
+   repeatable.
+4. **Object size and class frequency are confounded.** `twisted-meat` has large boxes but
+   few examples and scores worst, so these experiments cannot say which matters more.
+5. **Information lost before training.** The stretch-resize to 720 x 540 distorts aspect
+   ratio and appears to have dropped ~200 of the smallest annotations; no setting
+   chosen later can recover them.
+6. **Out-of-scope defects pass silently.** `wrinkle` and anything outside the four
+   classes produce no detection, which is not the same as a good tray.
+7. **Possible leakage between frames.** No near-duplicates were found, but the same tray
+   photographed at another belt position cannot be fully ruled out.
+8. **Run log incomplete.** `results.csv` for `alt_s640` is missing epochs 78–80 and 85–87.
+   The time column shows training ran continuously, so the most likely cause is a write
+   lost while saving to Google Drive. The weights and test results are unaffected.
+
+### Further work
+
+1. Re-export the dataset from the original full-resolution images (or with `Fit`
+   instead of `Stretch to`), so small creases survive and a larger input size can carry
+   real detail.
+2. Repeat each configuration over several seeds and report the spread.
+3. Address imbalance: more `twisted-meat` and `loose-meat` examples, or class-weighted
+   loss, to separate the effect of class frequency from object size.
+4. Tune the confidence threshold for the line's priority — a missed unsealed tray costs
+   more than a false alarm — and turn detections into a pass/fail verdict per tray.
+5. Test on images from a different day or line, to check the model generalises beyond
+   these recordings.
 
 ---
 
