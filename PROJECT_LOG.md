@@ -855,5 +855,9 @@ alternative improved on it, so there was no accuracy-versus-cost trade-off.
     Corrected in the log (Session 1, sections 2 and D1) and the report (sections 2
     and 4). Same lesson as errors 6 and 7: an unsourced claim repeated until it read
     as fact.
+15. **Claude's report draft gave the nano model "about 3.0 M" parameters.** The
+    benchmark measured 3,138,732 (3.1 M). Caught by Claude while rewriting the report
+    in plainer language on 24 Oct, and corrected in Section 3. Small, but a number
+    written from memory instead of read from the measured output.
 
 ---
