@@ -861,3 +861,27 @@ alternative improved on it, so there was no accuracy-versus-cost trade-off.
     written from memory instead of read from the measured output.
 
 ---
+
+
+## Session 5 — 25 October 2026
+
+Final review of the report before submission. One AI error found and corrected.
+
+### 1. AI use record — Session 5
+
+| Task | AI contribution | My contribution |
+|---|---|---|
+| Final report review and edits | High — review and edits by Claude | Asked for the review; checked the corrected text |
+
+**AI errors caught during this session:**
+
+16. **Claude's report draft said the overall test score "mostly reflects `unsealed`"**
+    because `unsealed` is 57% of test boxes. Caught by Claude in the final review on
+    25 Oct by recomputing the averages: the overall precision, recall and mAP50 are
+    plain averages of the four classes, so `loose-meat` (3 test boxes) counts as much
+    as `unsealed` (52). Without `loose-meat`, test mAP50 is 0.536 for `baseline_n640`,
+    0.505 for `alt_n960` and 0.449 for `alt_s640`, so the final choice still holds.
+    Corrected in the report (Section 2 and Appendix E). Same lesson as errors 9 and
+    13: a plausible explanation stated without checking how the number is calculated.
+
+---
