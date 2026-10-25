@@ -865,7 +865,7 @@ alternative improved on it, so there was no accuracy-versus-cost trade-off.
 
 ## Session 5 — 25 October 2026
 
-Final review of the report before submission. One AI error found and corrected.
+Final review of the report and README before submission. Two AI errors found and corrected.
 
 ### 1. AI use record — Session 5
 
@@ -883,5 +883,13 @@ Final review of the report before submission. One AI error found and corrected.
     0.505 for `alt_n960` and 0.449 for `alt_s640`, so the final choice still holds.
     Corrected in the report (Section 2 and Appendix E). Same lesson as errors 9 and
     13: a plausible explanation stated without checking how the number is calculated.
+
+17. **Claude's report draft said a bigger model and bigger input images "both failed
+    to improve `packaging-error` recall".** Caught by Claude in the same review by
+    checking `reports/metrics/`: `alt_s640` had higher `packaging-error` recall (0.505
+    against 0.414). Both alternatives did lower its mAP50, and `alt_s640` had lower
+    precision (0.435 against 0.593) and lower overall recall (0.545 against 0.616), so
+    the final choice holds. Corrected in report Section 5. The README's matching
+    averaging claim (error 16) was also corrected in sections 3 and 9.
 
 ---

@@ -136,7 +136,10 @@ The source images are only 720 px wide, however, so this enlargement adds no rea
    either way moves a per-class score by tens of percentage points, so per-class
    figures for these two are indicative only.
 3. **Skewed test composition.** `unsealed` is 21% of training boxes but 57% of test
-   boxes, so any single overall score largely reflects performance on `unsealed`.
+   boxes. This does not skew the overall scores, which are plain averages of the four
+   classes; the opposite effect matters instead: `loose-meat` (3 test boxes) counts as
+   much as `unsealed` (52). Without `loose-meat`, test mAP50 is 0.536 for
+   `baseline_n640`, 0.505 for `alt_n960` and 0.449 for `alt_s640`.
 4. **Annotations lost when the version was generated.** Roboflow's project-level
    class counts exceed the counts in the exported Version 1 by 200 boxes: 199 in
    `packaging-error` (1,645 vs 1,446) and 1 in `twisted-meat` (249 vs 248). The other
@@ -407,8 +410,8 @@ pdoc scripts/*.py -o reports/docs
 1. **`packaging-error` recall is 0.414**: the selected model misses close to 60% of
    creases, the most important defect. It is not ready to replace a human inspector.
 2. **Small, skewed test set.** 76 images; 3 `loose-meat` and 7 `twisted-meat` boxes.
-   Per-class scores for those two are indicative only, and the overall score is
-   dominated by `unsealed` (57% of test boxes).
+   Per-class scores for those two are indicative only, and because the overall score
+   averages the four classes equally, `loose-meat`'s 0.913 lifts it noticeably.
 3. **One training run per configuration.** Run-to-run variation was not measured, so
    part of the gap between runs may be chance. A seed does not make GPU training fully
    repeatable.
@@ -496,7 +499,7 @@ All AI-assisted output was verified before I relied on it:
 - Library behaviour was checked against the Ultralytics source code and documentation, and the GPU's peak speed against NVIDIA's T4 datasheet.
 - Claims were checked against the data itself, for example by looking at the saved image pairs rather than relying on filename numbers.
 
-`PROJECT_LOG.md` records 16 AI errors that were caught and corrected. Examples:
+`PROJECT_LOG.md` records 17 AI errors that were caught and corrected. Examples:
 
 - **Leakage.** From filename frame numbers, Claude concluded that near-identical frames were in both the training and test sets, which would have meant rebuilding the split. Looking at the image pairs showed different trays (the numbering is reused across recordings), so the split was kept.
 - **Unmeasured claim.** Claude wrote in this README that `packaging-error` boxes were "small". I rejected it as unmeasured; `scripts/box_stats.py` was written to measure them (median 28 × 28 px at 640).
