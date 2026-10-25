@@ -471,34 +471,39 @@ Artificial intelligence tools were used in the development of this project. In a
 
 | Tool | Version | Accessed | Used for |
 |---|---|---|---|
-| Claude ([Anthropic](https://claude.ai)) | Opus 5 | *[date range]* | *[e.g. debugging, code review, explaining library behaviour]* |
-| Gemini (built into [Google Colab](https://colab.research.google.com)) | *[version]* | *[date range]* | *[e.g. generating initial code cells for X]* |
-| *[other tool + link]* | *[version]* | *[date range]* | *[purpose]* |
+| Claude ([Anthropic](https://claude.ai)) | Claude Opus 5.5 | 18 September – 25 October 2026 | Writing the scripts, tests and Colab notebook; step-by-step GitHub, Colab and Roboflow setup; interpreting results; drafting this README and the report; keeping `PROJECT_LOG.md` |
+
+Claude was the only AI tool used.
 
 ### How AI was used
 
-AI assistance was limited to *[scope — e.g. drafting boilerplate for the data-loading module, suggesting plotting approaches, and explaining runtime errors]*. No AI-generated content was incorporated verbatim.
+AI contribution was high. Claude wrote the code in `scripts/`, the tests in `tests/` and `notebooks/train_colab.ipynb`, and drafted this README and the written report. I had little prior experience with GitHub, Ultralytics or Colab, so this let me spend my time running the work, checking results and making the engineering decisions. The AI-use table for each session, with every error caught, is in [`PROJECT_LOG.md`](PROJECT_LOG.md).
 
-Suggested code was rewritten to match the project's structure and naming conventions. For example, *[describe a specific change you made — e.g. the vectorised approach initially suggested was replaced with an explicit loop for readability]*.
+I ran every script, every training run, every evaluation and every benchmark myself, and reviewed AI-drafted text before committing it. Decisions that stayed mine: the four-class scope and dropping `wrinkle`, what each class means, keeping the original train/valid/test split after the leakage check, choosing `baseline_n640` as the final method, and what went into the report.
 
-Analysis, interpretation of results, and all engineering conclusions are my own.
-
-**Known limitations.** These models can produce confident but incorrect output, particularly on library-specific APIs and numerical edge cases. Their training data has a knowledge cutoff that may predate the versions of the libraries used here, and outputs may reflect biases present in that training data.
+**Known limitations.** These models can produce confident but incorrect output, particularly on library-specific APIs and numerical edge cases. In this project the most common problem was a guess stated as a fact. Their training data has a knowledge cutoff that may predate the versions of the libraries used here, and outputs may reflect biases present in that training data.
 
 ### Data handling
 
-*[If applicable]* No confidential, client-owned, or personally identifying data was provided to any external AI tool. *[Name anything you deliberately withheld and why.]*
+The dataset is public (CC BY 4.0, Roboflow Universe). No confidential, client-owned or personally identifying data was used in this project. The Roboflow API key is stored as a Colab secret (`ROBOFLOW_API_KEY`) and is not committed to this repository.
 
 ### Human oversight and responsibility
 
-All AI-assisted output was verified before inclusion:
+All AI-assisted output was verified before I relied on it:
 
-- Code was executed and tested against *[known values / hand-calculated cases / documented examples]*.
-- Factual and technical claims were checked against *[textbooks, standards, official library documentation — name them]*.
-- *[Describe at least one thing AI got wrong that you caught and corrected.]*
+- Code was run on the real data and checked by 53 pytest tests (`reports/tests/pytest_report.txt`), including the actual polygon label line that crashed the first run.
+- Dataset counts were checked against a second source: terminal counts and Roboflow's project page.
+- Library behaviour was checked against the Ultralytics source code and documentation, and the GPU's peak speed against NVIDIA's T4 datasheet.
+- Claims were checked against the data itself, for example by looking at the saved image pairs rather than relying on filename numbers.
+
+`PROJECT_LOG.md` records 16 AI errors that were caught and corrected. Examples:
+
+- **Leakage.** From filename frame numbers, Claude concluded that near-identical frames were in both the training and test sets, which would have meant rebuilding the split. Looking at the image pairs showed different trays (the numbering is reused across recordings), so the split was kept.
+- **Unmeasured claim.** Claude wrote in this README that `packaging-error` boxes were "small". I rejected it as unmeasured; `scripts/box_stats.py` was written to measure them (median 28 × 28 px at 640).
+- **Library assumption.** `benchmark.py` crashed on first use because Claude assumed `model.info(verbose=False)` returns the model summary; in Ultralytics 8.4.183 it returns `None`. Fixed after reading the library source.
 
 I am solely responsible for the accuracy, quality, and fitness-for-purpose of the final submission, including any content developed with AI assistance.
 
 ---
 
-*Last updated: [date]*
+*Last updated: 25 October 2026*
